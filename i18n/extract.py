@@ -267,4 +267,5 @@ def is_key_string(string):
 
 if __name__ == '__main__':
     for locale in config.CONFIGURATION.locales:
+        print 'extracting strings for {locale}'.format(locale=locale)
         Extract(locale)
