@@ -44,11 +44,6 @@ class Extract(Runner):
     Class used to extract source files
     """
 
-    def __init__(self, locale):
-        Runner.__init__(self)
-        self.locale = locale
-        self.locale_msg_dir = config.CONFIGURATION.get_messages_dir(locale)
-
     def add_args(self):
         """
         Adds arguments
@@ -69,118 +64,122 @@ class Extract(Runner):
         """
         Main entry point of script
         """
-        logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-        config.LOCALE_DIR.parent.makedirs_p()
 
-        # The extraction process clobbers django.po and djangojs.po.
-        # Save them so that it won't do that.
-        self.rename_source_file('django.po', 'django-saved.po')
-        self.rename_source_file('djangojs.po', 'djangojs-saved.po')
+        for locale in config.CONFIGURATION.locales:
+            print 'extracting strings for {locale}'.format(locale=locale)
+            self.locale_msg_dir = config.CONFIGURATION.get_messages_dir(locale)
+            logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+            config.LOCALE_DIR.parent.makedirs_p()
 
-        # Extract strings from mako templates.
-        verbosity_map = {
-            0: "-q",
-            1: "",
-            2: "-v",
-        }
-        babel_verbosity = verbosity_map.get(args.verbose, "")
+            # The extraction process clobbers django.po and djangojs.po.
+            # Save them so that it won't do that.
+            self.rename_source_file('django.po', 'django-saved.po')
+            self.rename_source_file('djangojs.po', 'djangojs-saved.po')
 
-        if args.verbose:
-            stderr = None
-        else:
-            stderr = DEVNULL
+            # Extract strings from mako templates.
+            verbosity_map = {
+                0: "-q",
+                1: "",
+                2: "-v",
+            }
+            babel_verbosity = verbosity_map.get(args.verbose, "")
 
-        # --keyword informs Babel that `interpolate()` is an expected
-        # gettext function, which is necessary because the `tokenize` function
-        # in the `markey` module marks it as such and passes it to Babel.
-        # (These functions are called in the django-babel-underscore module.)
-        babel_cmd_template = (
-            'pybabel {verbosity} extract --mapping={config} '
-            '--add-comments="Translators:" --keyword="interpolate" '
-            '. --output={output}'
-        )
+            if args.verbose:
+                stderr = None
+            else:
+                stderr = DEVNULL
 
-        babel_mako_cfg = base(config.LOCALE_DIR, 'babel_mako.cfg')
-        if babel_mako_cfg.exists():
-            babel_mako_cmd = babel_cmd_template.format(
-                verbosity=babel_verbosity,
-                config=babel_mako_cfg,
-                output=base(self.locale_msg_dir, 'mako.po'),
+            # --keyword informs Babel that `interpolate()` is an expected
+            # gettext function, which is necessary because the `tokenize` function
+            # in the `markey` module marks it as such and passes it to Babel.
+            # (These functions are called in the django-babel-underscore module.)
+            babel_cmd_template = (
+                'pybabel {verbosity} extract --mapping={config} '
+                '--add-comments="Translators:" --keyword="interpolate" '
+                '. --output={output}'
             )
 
-            execute(babel_mako_cmd, working_directory=config.BASE_DIR, stderr=stderr)
+            babel_mako_cfg = base(config.LOCALE_DIR, 'babel_mako.cfg')
+            if babel_mako_cfg.exists():
+                babel_mako_cmd = babel_cmd_template.format(
+                    verbosity=babel_verbosity,
+                    config=babel_mako_cfg,
+                    output=base(self.locale_msg_dir, 'mako.po'),
+                )
 
-        babel_underscore_cfg = base(config.LOCALE_DIR, 'babel_underscore.cfg')
-        if babel_underscore_cfg.exists():
-            babel_underscore_cmd = babel_cmd_template.format(
-                verbosity=babel_verbosity,
-                config=babel_underscore_cfg,
-                output=base(self.locale_msg_dir, 'underscore.po'),
-            )
+                execute(babel_mako_cmd, working_directory=config.BASE_DIR, stderr=stderr)
 
-            execute(babel_underscore_cmd, working_directory=config.BASE_DIR, stderr=stderr)
+            babel_underscore_cfg = base(config.LOCALE_DIR, 'babel_underscore.cfg')
+            if babel_underscore_cfg.exists():
+                babel_underscore_cmd = babel_cmd_template.format(
+                    verbosity=babel_verbosity,
+                    config=babel_underscore_cfg,
+                    output=base(self.locale_msg_dir, 'underscore.po'),
+                )
 
-        makemessages = "django-admin.py makemessages -l {lang} -v{verbosity}" \
-            .format(lang=self.locale, verbosity=args.verbose)
-        ignores = " ".join('--ignore="{}/*"'.format(d) for d in config.CONFIGURATION.ignore_dirs)
-        if ignores:
-            makemessages += " " + ignores
+                execute(babel_underscore_cmd, working_directory=config.BASE_DIR, stderr=stderr)
 
-        # Extract strings from django source files (*.py, *.html, *.txt).
-        make_django_cmd = makemessages + ' -d django'
-        execute(make_django_cmd, working_directory=config.BASE_DIR, stderr=stderr)
+            makemessages = "django-admin.py makemessages -l {lang} -v{verbosity}" \
+                .format(lang=locale, verbosity=args.verbose)
+            ignores = " ".join('--ignore="{}/*"'.format(d) for d in config.CONFIGURATION.ignore_dirs)
+            if ignores:
+                makemessages += " " + ignores
 
-        # Extract strings from Javascript source files (*.js).
-        make_djangojs_cmd = makemessages + ' -d djangojs'
-        execute(make_djangojs_cmd, working_directory=config.BASE_DIR, stderr=stderr)
+            # Extract strings from django source files (*.py, *.html, *.txt).
+            make_django_cmd = makemessages + ' -d django'
+            execute(make_django_cmd, working_directory=config.BASE_DIR, stderr=stderr)
 
-        # makemessages creates 'django.po'. This filename is hardcoded.
-        # Rename it to django-partial.po to enable merging into django.po later.
-        self.rename_source_file('django.po', 'django-partial.po')
+            # Extract strings from Javascript source files (*.js).
+            make_djangojs_cmd = makemessages + ' -d djangojs'
+            execute(make_djangojs_cmd, working_directory=config.BASE_DIR, stderr=stderr)
 
-        # makemessages creates 'djangojs.po'. This filename is hardcoded.
-        # Rename it to djangojs-partial.po to enable merging into djangojs.po later.
-        self.rename_source_file('djangojs.po', 'djangojs-partial.po')
+            # makemessages creates 'django.po'. This filename is hardcoded.
+            # Rename it to django-partial.po to enable merging into django.po later.
+            self.rename_source_file('django.po', 'django-partial.po')
 
-        files_to_clean = set()
+            # makemessages creates 'djangojs.po'. This filename is hardcoded.
+            # Rename it to djangojs-partial.po to enable merging into djangojs.po later.
+            self.rename_source_file('djangojs.po', 'djangojs-partial.po')
 
-        # Extract strings from third-party applications.
-        for app_name in config.CONFIGURATION.third_party:
-            # Import the app to find out where it is.  Then use pybabel to extract
-            # from that directory.
-            app_module = importlib.import_module(app_name)
-            app_dir = Path(app_module.__file__).dirname().dirname()  # pylint: disable=no-value-for-parameter
-            output_file = self.locale_msg_dir / (app_name + ".po")
-            files_to_clean.add(output_file)
+            files_to_clean = set()
 
-            babel_cmd = 'pybabel {verbosity} extract -F {config} -c "Translators:" {app} -o {output}'
-            babel_cmd = babel_cmd.format(
-                verbosity=babel_verbosity,
-                config=config.LOCALE_DIR / 'babel_third_party.cfg',
-                app=app_name,
-                output=output_file,
-            )
-            execute(babel_cmd, working_directory=app_dir, stderr=stderr)
+            # Extract strings from third-party applications.
+            for app_name in config.CONFIGURATION.third_party:
+                # Import the app to find out where it is.  Then use pybabel to extract
+                # from that directory.
+                app_module = importlib.import_module(app_name)
+                app_dir = Path(app_module.__file__).dirname().dirname()  # pylint: disable=no-value-for-parameter
+                output_file = self.locale_msg_dir / (app_name + ".po")
+                files_to_clean.add(output_file)
 
-        # Segment the generated files.
-        segmented_files = segment_pofiles(self.locale)
-        files_to_clean.update(segmented_files)
+                babel_cmd = 'pybabel {verbosity} extract -F {config} -c "Translators:" {app} -o {output}'
+                babel_cmd = babel_cmd.format(
+                    verbosity=babel_verbosity,
+                    config=config.LOCALE_DIR / 'babel_third_party.cfg',
+                    app=app_name,
+                    output=output_file,
+                )
+                execute(babel_cmd, working_directory=app_dir, stderr=stderr)
 
-        # Finish each file.
-        for filename in files_to_clean:
-            LOG.info('Cleaning %s', filename)
-            pofile = polib.pofile(self.locale_msg_dir.joinpath(filename))
-            # replace default headers with edX headers
-            fix_header(pofile)
-            # replace default metadata with edX metadata
-            fix_metadata(pofile)
-            # remove key strings which belong in messages.po
-            strip_key_strings(pofile)
-            pofile.save()
+            # Segment the generated files.
+            segmented_files = segment_pofiles(locale)
+            files_to_clean.update(segmented_files)
 
-        # Restore the saved .po files.
-        self.rename_source_file('django-saved.po', 'django.po')
-        self.rename_source_file('djangojs-saved.po', 'djangojs.po')
+            # Finish each file.
+            for filename in files_to_clean:
+                LOG.info('Cleaning %s', filename)
+                pofile = polib.pofile(self.locale_msg_dir.joinpath(filename))
+                # replace default headers with edX headers
+                fix_header(pofile)
+                # replace default metadata with edX metadata
+                fix_metadata(pofile)
+                # remove key strings which belong in messages.po
+                strip_key_strings(pofile)
+                pofile.save()
+
+            # Restore the saved .po files.
+            self.rename_source_file('django-saved.po', 'django.po')
+            self.rename_source_file('djangojs-saved.po', 'djangojs.po')
 
 
 def fix_header(pofile):
@@ -264,8 +263,7 @@ def is_key_string(string):
     """
     return len(string) > 1 and string[0] == '_'
 
+main = Extract()
 
 if __name__ == '__main__':
-    for locale in config.CONFIGURATION.locales:
-        print 'extracting strings for {locale}'.format(locale=locale)
-        Extract(locale)
+    main()
