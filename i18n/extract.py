@@ -15,20 +15,19 @@ and it cannot be overridden.
 
 """
 
-from datetime import datetime
 import importlib
+import logging
 import os
 import os.path
-import logging
 import sys
-import polib
+from datetime import datetime
 
+import polib
 from path import Path
 
 from i18n import config, Runner
 from i18n.execute import execute
 from i18n.segment import segment_pofiles
-
 
 EDX_MARKER = "edX translation file"
 LOG = logging.getLogger(__name__)
@@ -44,6 +43,12 @@ class Extract(Runner):
     """
     Class used to extract source files
     """
+
+    def __init__(self, locale):
+        Runner.__init__(self)
+        self.locale = locale
+        self.locale_msg_dir = config.CONFIGURATION.get_messages_dir(locale)
+
     def add_args(self):
         """
         Adds arguments
@@ -55,8 +60,8 @@ class Extract(Runner):
         """
         Rename a file in the source directory.
         """
-        if os.path.isfile(self.source_msgs_dir.joinpath(src)):
-            os.rename(self.source_msgs_dir.joinpath(src), self.source_msgs_dir.joinpath(dst))
+        if os.path.isfile(self.locale_msg_dir.joinpath(src)):
+            os.rename(self.locale_msg_dir.joinpath(src), self.locale_msg_dir.joinpath(dst))
         else:
             print '{file} doesn\'t exist to rename'.format(file=src)
 
@@ -66,8 +71,6 @@ class Extract(Runner):
         """
         logging.basicConfig(stream=sys.stdout, level=logging.INFO)
         config.LOCALE_DIR.parent.makedirs_p()
-        # pylint: disable=attribute-defined-outside-init
-        self.source_msgs_dir = config.CONFIGURATION.source_messages_dir
 
         # The extraction process clobbers django.po and djangojs.po.
         # Save them so that it won't do that.
@@ -102,7 +105,7 @@ class Extract(Runner):
             babel_mako_cmd = babel_cmd_template.format(
                 verbosity=babel_verbosity,
                 config=babel_mako_cfg,
-                output=base(config.CONFIGURATION.source_messages_dir, 'mako.po'),
+                output=base(self.locale_msg_dir, 'mako.po'),
             )
 
             execute(babel_mako_cmd, working_directory=config.BASE_DIR, stderr=stderr)
@@ -112,12 +115,13 @@ class Extract(Runner):
             babel_underscore_cmd = babel_cmd_template.format(
                 verbosity=babel_verbosity,
                 config=babel_underscore_cfg,
-                output=base(config.CONFIGURATION.source_messages_dir, 'underscore.po'),
+                output=base(self.locale_msg_dir, 'underscore.po'),
             )
 
             execute(babel_underscore_cmd, working_directory=config.BASE_DIR, stderr=stderr)
 
-        makemessages = "django-admin.py makemessages -l en -v{}".format(args.verbose)
+        makemessages = "django-admin.py makemessages -l {lang} -v{verbosity}" \
+            .format(lang=self.locale, verbosity=args.verbose)
         ignores = " ".join('--ignore="{}/*"'.format(d) for d in config.CONFIGURATION.ignore_dirs)
         if ignores:
             makemessages += " " + ignores
@@ -146,7 +150,7 @@ class Extract(Runner):
             # from that directory.
             app_module = importlib.import_module(app_name)
             app_dir = Path(app_module.__file__).dirname().dirname()  # pylint: disable=no-value-for-parameter
-            output_file = self.source_msgs_dir / (app_name + ".po")
+            output_file = self.locale_msg_dir / (app_name + ".po")
             files_to_clean.add(output_file)
 
             babel_cmd = 'pybabel {verbosity} extract -F {config} -c "Translators:" {app} -o {output}'
@@ -159,13 +163,13 @@ class Extract(Runner):
             execute(babel_cmd, working_directory=app_dir, stderr=stderr)
 
         # Segment the generated files.
-        segmented_files = segment_pofiles("en")
+        segmented_files = segment_pofiles(self.locale)
         files_to_clean.update(segmented_files)
 
         # Finish each file.
         for filename in files_to_clean:
             LOG.info('Cleaning %s', filename)
-            pofile = polib.pofile(self.source_msgs_dir.joinpath(filename))
+            pofile = polib.pofile(self.locale_msg_dir.joinpath(filename))
             # replace default headers with edX headers
             fix_header(pofile)
             # replace default metadata with edX metadata
@@ -191,7 +195,7 @@ def fix_header(pofile):
     #   This file is distributed under the same license as the PACKAGE package.
     #   FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 
-    pofile.metadata_is_fuzzy = []   # remove [u'fuzzy']
+    pofile.metadata_is_fuzzy = []  # remove [u'fuzzy']
     header = pofile.header
     fixes = (
         ('SOME DESCRIPTIVE TITLE', EDX_MARKER),
@@ -260,7 +264,7 @@ def is_key_string(string):
     """
     return len(string) > 1 and string[0] == '_'
 
-main = Extract()  # pylint: disable=invalid-name
 
 if __name__ == '__main__':
-    main()
+    for locale in config.CONFIGURATION.locales:
+        Extract(locale)
