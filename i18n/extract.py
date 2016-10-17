@@ -55,7 +55,10 @@ class Extract(Runner):
         """
         Rename a file in the source directory.
         """
-        os.rename(self.source_msgs_dir.joinpath(src), self.source_msgs_dir.joinpath(dst))
+        if os.path.isfile(self.source_msgs_dir.joinpath(src)):
+            os.rename(self.source_msgs_dir.joinpath(src), self.source_msgs_dir.joinpath(dst))
+        else:
+            print '{file} doesn\'t exist to rename'.format(file=src)
 
     def run(self, args):
         """
