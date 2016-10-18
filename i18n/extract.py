@@ -51,12 +51,12 @@ class Extract(Runner):
         # pylint: disable=invalid-name
         self.parser.description = __doc__
 
-    def rename_source_file(self, src, dst):
+    def rename_source_file(self, src, dst, locale_msg_dir):
         """
         Rename a file in the source directory.
         """
-        if os.path.isfile(self.locale_msg_dir.joinpath(src)):
-            os.rename(self.locale_msg_dir.joinpath(src), self.locale_msg_dir.joinpath(dst))
+        if os.path.isfile(locale_msg_dir.joinpath(src)):
+            os.rename(locale_msg_dir.joinpath(src), locale_msg_dir.joinpath(dst))
         else:
             print '{file} doesn\'t exist to rename'.format(file=src)
 
@@ -124,8 +124,9 @@ class Extract(Runner):
 
         # The extraction process clobbers django.po and djangojs.po.
         # Save them so that it won't do that.
-        self.rename_source_file('django.po', 'django-saved.po')
-        self.rename_source_file('djangojs.po', 'djangojs-saved.po')
+        for locale in locales:
+            self.rename_source_file('django.po', 'django-saved.po', locale)
+            self.rename_source_file('djangojs.po', 'djangojs-saved.po', locale)
 
         # Extract strings from mako templates.
         verbosity_map = {
@@ -158,13 +159,13 @@ class Extract(Runner):
             make_djangojs_cmd = makemessages + ' -d djangojs'
             execute(make_djangojs_cmd, working_directory=config.BASE_DIR, stderr=stderr)
 
-        # makemessages creates 'django.po'. This filename is hardcoded.
-        # Rename it to django-partial.po to enable merging into django.po later.
-        self.rename_source_file('django.po', 'django-partial.po')
-
-        # makemessages creates 'djangojs.po'. This filename is hardcoded.
-        # Rename it to djangojs-partial.po to enable merging into djangojs.po later.
-        self.rename_source_file('djangojs.po', 'djangojs-partial.po')
+        for locale in locales:
+            # makemessages creates 'django.po'. This filename is hardcoded.
+            # Rename it to django-partial.po to enable merging into django.po later.
+            self.rename_source_file('django.po', 'django-partial.po', locale)
+            # makemessages creates 'djangojs.po'. This filename is hardcoded.
+            # Rename it to djangojs-partial.po to enable merging into djangojs.po later.
+            self.rename_source_file('djangojs.po', 'djangojs-partial.po', locale)
 
         files_to_clean = set()
 
@@ -203,9 +204,9 @@ class Extract(Runner):
                 strip_key_strings(pofile)
                 pofile.save()
 
-        # Restore the saved .po files.
-        self.rename_source_file('django-saved.po', 'django.po')
-        self.rename_source_file('djangojs-saved.po', 'djangojs.po')
+            # Restore the saved .po files.
+            self.rename_source_file('django-saved.po', 'django.po', locale)
+            self.rename_source_file('djangojs-saved.po', 'djangojs.po', locale)
 
 
 def fix_header(pofile):
