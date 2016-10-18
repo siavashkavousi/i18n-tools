@@ -76,7 +76,7 @@ class Extract(Runner):
         )
 
         babel_cfg = base(config.LOCALE_DIR, babel_cfg_name)
-        outputfile_path = base(config.LOCALE_DIR, outputfile_name)
+        outputfile_path = base(config.LOCALE_DIR, outputfile_name + '.po')
         locale_dir = base(config.LOCALE_DIR)
 
         if babel_cfg.exists():
@@ -132,8 +132,8 @@ class Extract(Runner):
         else:
             stderr = DEVNULL
 
-        self.run_babel_extraction('mako.po', 'babel_mako.cfg', babel_verbosity, stderr)
-        self.run_babel_extraction('underscore.po', 'babel_underscore.cfg', babel_verbosity, stderr)
+        self.run_babel_extraction('mako', 'babel_mako.cfg', babel_verbosity, stderr)
+        self.run_babel_extraction('underscore', 'babel_underscore.cfg', babel_verbosity, stderr)
 
         for locale in locales:
             # The extraction process clobbers django.po and djangojs.po.
