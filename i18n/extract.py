@@ -93,31 +93,50 @@ class Extract(Runner):
             # gettext function, which is necessary because the `tokenize` function
             # in the `markey` module marks it as such and passes it to Babel.
             # (These functions are called in the django-babel-underscore module.)
-            babel_cmd_template = (
+            babel_extract_template = (
                 'pybabel {verbosity} extract --mapping={config} '
+                '--add-comments="Translators:" --keyword="interpolate" '
+                '. --output={output}'
+            )
+            babel_update_template = (
+                'pybabel {verbosity} update --mapping={config} '
                 '--add-comments="Translators:" --keyword="interpolate" '
                 '. --output={output}'
             )
 
             babel_mako_cfg = base(config.LOCALE_DIR, 'babel_mako.cfg')
             if babel_mako_cfg.exists():
-                babel_mako_cmd = babel_cmd_template.format(
-                    verbosity=babel_verbosity,
-                    config=babel_mako_cfg,
-                    output=base(self.locale_msg_dir, 'mako.po'),
-                )
-
-                execute(babel_mako_cmd, working_directory=config.BASE_DIR, stderr=stderr)
+                if os.path.isfile(base(self.locale_msg_dir, 'mako.po')):
+                    babel_mako_cmd = babel_update_template.format(
+                        verbosity=babel_verbosity,
+                        config=babel_mako_cfg,
+                        output=base(self.locale_msg_dir, 'mako.po'),
+                    )
+                    execute(babel_mako_cmd, working_directory=config.BASE_DIR, stderr=stderr)
+                else:
+                    babel_mako_cmd = babel_extract_template.format(
+                        verbosity=babel_verbosity,
+                        config=babel_mako_cfg,
+                        output=base(self.locale_msg_dir, 'mako.po'),
+                    )
+                    execute(babel_mako_cmd, working_directory=config.BASE_DIR, stderr=stderr)
 
             babel_underscore_cfg = base(config.LOCALE_DIR, 'babel_underscore.cfg')
             if babel_underscore_cfg.exists():
-                babel_underscore_cmd = babel_cmd_template.format(
-                    verbosity=babel_verbosity,
-                    config=babel_underscore_cfg,
-                    output=base(self.locale_msg_dir, 'underscore.po'),
-                )
-
-                execute(babel_underscore_cmd, working_directory=config.BASE_DIR, stderr=stderr)
+                if os.path.isfile(base(self.locale_msg_dir, 'underscore.po')):
+                    babel_underscore_cmd = babel_update_template.format(
+                        verbosity=babel_verbosity,
+                        config=babel_underscore_cfg,
+                        output=base(self.locale_msg_dir, 'underscore.po'),
+                    )
+                    execute(babel_underscore_cmd, working_directory=config.BASE_DIR, stderr=stderr)
+                else:
+                    babel_underscore_cmd = babel_extract_template.format(
+                        verbosity=babel_verbosity,
+                        config=babel_underscore_cfg,
+                        output=base(self.locale_msg_dir, 'underscore.po'),
+                    )
+                    execute(babel_underscore_cmd, working_directory=config.BASE_DIR, stderr=stderr)
 
             makemessages = "django-admin.py makemessages -l {lang} -v{verbosity}" \
                 .format(lang=locale, verbosity=args.verbose)
