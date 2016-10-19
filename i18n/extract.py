@@ -26,6 +26,7 @@ import polib
 from i18n import config, Runner
 from i18n.execute import execute
 from i18n.segment import segment_pofiles
+from i18n.generate import merge
 
 EDX_MARKER = "edX translation file"
 LOG = logging.getLogger(__name__)
@@ -75,8 +76,9 @@ class Extract(Runner):
             'pybabel update -D {file_name} -i {input} -d {base_dir}'
         )
 
+        outputfile = outputfile_name + '.po'
         babel_cfg = base(config.LOCALE_DIR, babel_cfg_name)
-        outputfile_path = base(config.LOCALE_DIR, outputfile_name + '.po')
+        outputfile_path = base(config.LOCALE_DIR, outputfile)
         locale_dir = base(config.LOCALE_DIR)
 
         if babel_cfg.exists():
@@ -91,8 +93,8 @@ class Extract(Runner):
             for locale in config.CONFIGURATION.locales:
                 locale_msg_dir = config.CONFIGURATION.get_messages_dir(locale)
                 # creating translation catalog should only occur once
-                if os.path.isfile(base(locale_msg_dir, outputfile_name + '.po')):
-                    continue
+                if os.path.isfile(base(locale_msg_dir, outputfile)):
+                    merge(locale, outputfile, [outputfile, outputfile_name + '-studio.po'])
                 else:
                     babel_cmd = babel_init_template.format(
                         file_name=outputfile_name,
@@ -102,6 +104,7 @@ class Extract(Runner):
                     )
                     execute(babel_cmd, working_directory=config.BASE_DIR, stderr=stderr)
 
+            # update process
             babel_cmd = babel_update_template.format(
                 file_name=outputfile_name,
                 input=outputfile_path,
