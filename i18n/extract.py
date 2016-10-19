@@ -94,7 +94,12 @@ class Extract(Runner):
                 locale_msg_dir = config.CONFIGURATION.get_messages_dir(locale)
                 # creating translation catalog should only occur once
                 if os.path.isfile(base(locale_msg_dir, outputfile)):
-                    merge(locale, outputfile, [outputfile, outputfile_name + '-studio.po'])
+                    locale_directory = config.CONFIGURATION.get_messages_dir(locale)
+                    merge_cmd = 'msgcat -o merged.po ' + ' '.join([outputfile, outputfile_name + '-studio.po'])
+                    execute(merge_cmd, working_directory=locale_directory)
+                    merged_filename = locale_directory.joinpath('merged.po')
+                    target_filename = locale_directory.joinpath(outputfile)
+                    os.rename(merged_filename, target_filename)
                 else:
                     babel_cmd = babel_init_template.format(
                         file_name=outputfile_name,
