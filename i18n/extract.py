@@ -91,7 +91,7 @@ class Extract(Runner):
             for locale in config.CONFIGURATION.locales:
                 locale_msg_dir = config.CONFIGURATION.get_messages_dir(locale)
                 # creating translation catalog should only occur once
-                if os.path.isfile(base(locale_msg_dir, outputfile_name)):
+                if os.path.isfile(base(locale_msg_dir, outputfile_name + '.po')):
                     continue
                 else:
                     babel_cmd = babel_init_template.format(
