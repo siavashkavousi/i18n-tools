@@ -26,7 +26,6 @@ import polib
 from i18n import config, Runner
 from i18n.execute import execute
 from i18n.segment import segment_pofiles
-from i18n.generate import merge
 
 EDX_MARKER = "edX translation file"
 LOG = logging.getLogger(__name__)
@@ -94,12 +93,7 @@ class Extract(Runner):
                 locale_msg_dir = config.CONFIGURATION.get_messages_dir(locale)
                 # creating translation catalog should only occur once
                 if os.path.isfile(base(locale_msg_dir, outputfile)):
-                    locale_directory = config.CONFIGURATION.get_messages_dir(locale)
-                    merge_cmd = 'msgcat -o merged.po ' + ' '.join([outputfile, outputfile_name + '-studio.po'])
-                    execute(merge_cmd, working_directory=locale_directory)
-                    merged_filename = locale_directory.joinpath('merged.po')
-                    target_filename = locale_directory.joinpath(outputfile)
-                    os.rename(merged_filename, target_filename)
+                    merge(locale, outputfile, outputfile_name)
                 else:
                     babel_cmd = babel_init_template.format(
                         file_name=outputfile_name,
@@ -150,6 +144,11 @@ class Extract(Runner):
             self.rename_source_file('django.po', 'django-saved.po', locale_msg_dir)
             self.rename_source_file('djangojs.po', 'djangojs-saved.po', locale_msg_dir)
 
+            if os.path.isfile(base(locale_msg_dir, 'django-partial.po')):
+                merge(locale, 'django-partial.po', 'django')
+            if os.path.isfile(base(locale_msg_dir, 'djangojs-partial.po')):
+                merge(locale, 'django-partial.po', 'djangojs')
+
             makemessages = "django-admin.py makemessages -l {locale} -v{verbosity}" \
                 .format(locale=locale, verbosity=args.verbose)
             ignores = " ".join('--ignore="{}/*"'.format(d) for d in config.CONFIGURATION.ignore_dirs)
@@ -192,6 +191,15 @@ class Extract(Runner):
             # Restore the saved .po files.
             self.rename_source_file('django-saved.po', 'django.po', locale_msg_dir)
             self.rename_source_file('djangojs-saved.po', 'djangojs.po', locale_msg_dir)
+
+
+def merge(locale, outputfile, outputfile_name):
+    locale_directory = config.CONFIGURATION.get_messages_dir(locale)
+    merge_cmd = 'msgcat -o merged.po ' + ' '.join([outputfile, outputfile_name + '-studio.po'])
+    execute(merge_cmd, working_directory=locale_directory)
+    merged_filename = locale_directory.joinpath('merged.po')
+    target_filename = locale_directory.joinpath(outputfile)
+    os.rename(merged_filename, target_filename)
 
 
 def fix_header(pofile):
